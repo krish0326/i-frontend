@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useContext } from 'react';
 import { ThemeContext } from '../../context/ThemeContext';
-import io from 'socket.io-client';
 
 const Chatbot = () => {
   const { theme } = useContext(ThemeContext);
@@ -10,126 +9,41 @@ const Chatbot = () => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
-  const [userId, setUserId] = useState(null);
-  const [socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Backend URL - update this to your Vercel backend URL
+  const BACKEND_URL = 'https://your-backend-domain.vercel.app'; // Replace with your actual Vercel backend URL
 
-  // Initialize Socket.IO connection
+  // Check backend connection
   useEffect(() => {
-    const newSocket = io('http://localhost:5000', {
-      transports: ['websocket', 'polling']
-    });
-
-    newSocket.on('connect', () => {
-      console.log('Connected to chatbot server');
-      setIsConnected(true);
-    });
-
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from chatbot server');
-      setIsConnected(false);
-    });
-
-    newSocket.on('session-joined', (data) => {
-      console.log('Joined session:', data.sessionId);
-      setSessionId(data.sessionId);
-      setUserId(data.userId);
-    });
-
-    newSocket.on('conversation-history', (data) => {
-      setMessages(data.messages.map(msg => ({
-        id: msg._id,
-        text: msg.message,
-        type: msg.messageType,
-        timestamp: new Date(msg.createdAt)
-      })));
-    });
-
-    newSocket.on('new-message', (data) => {
-      const newMessages = [
-        {
-          id: data.userMessage.id,
-          text: data.userMessage.message,
-          type: 'user',
-          timestamp: new Date(data.userMessage.timestamp)
-        },
-        {
-          id: data.botMessage.id,
-          text: data.botMessage.message,
-          type: 'bot',
-          timestamp: new Date(data.botMessage.timestamp),
-          context: data.botMessage.context
+    const checkConnection = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/health`);
+        if (response.ok) {
+          setIsConnected(true);
+          console.log('Connected to backend successfully');
+        } else {
+          setIsConnected(false);
+          console.log('Backend connection failed');
         }
-      ];
-      
-      setMessages(prev => [...prev, ...newMessages]);
-      setIsTyping(false);
-    });
-
-    newSocket.on('conversation-complete', (data) => {
-      console.log('Conversation complete:', data);
-      // Handle conversation completion
-      const completionMessage = {
-        id: Date.now(),
-        text: "🎉 Thank you for sharing your project details! Our team will review your requirements and get back to you within 24 hours with a personalized proposal. We're excited to help bring your vision to life! 🏠✨",
-        type: 'bot',
-        timestamp: new Date(),
-        isCompletion: true
-      };
-      setMessages(prev => [...prev, completionMessage]);
-    });
-
-    newSocket.on('user-typing', (data) => {
-      // Handle other user typing indicator if needed
-    });
-
-    newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.close();
+      } catch (error) {
+        setIsConnected(false);
+        console.error('Backend connection error:', error);
+      }
     };
-  }, []);
+
+    checkConnection();
+  }, [BACKEND_URL]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Generate unique user ID if not exists
-  useEffect(() => {
-    if (!userId) {
-      const storedUserId = localStorage.getItem('chatbot_user_id');
-      if (storedUserId) {
-        setUserId(storedUserId);
-      } else {
-        const newUserId = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        localStorage.setItem('chatbot_user_id', newUserId);
-        setUserId(newUserId);
-      }
-    }
-  }, [userId]);
-
-  // Join session when chatbot opens
-  useEffect(() => {
-    if (isOpen && socket && isConnected && userId && !sessionId) {
-      const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      socket.emit('join-session', {
-        sessionId: newSessionId,
-        userId: userId
-      });
-    }
-  }, [isOpen, socket, isConnected, userId, sessionId]);
-
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !socket || !sessionId || !userId) return;
+    if (!inputMessage.trim()) return;
 
     const message = inputMessage.trim();
     setInputMessage('');
@@ -144,16 +58,45 @@ const Chatbot = () => {
     };
     setMessages(prev => [...prev, userMessage]);
 
-    // Send message through Socket.IO
-    socket.emit('send-message', {
-      sessionId,
-      userId,
-      message,
-      metadata: {
-        userAgent: navigator.userAgent,
-        ipAddress: 'client-side'
+    try {
+      // Send message to backend
+      const response = await fetch(`${BACKEND_URL}/api/chatbot/message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ message })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Add bot response to UI
+        const botMessage = {
+          id: Date.now() + 1,
+          text: data.response,
+          type: 'bot',
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, botMessage]);
+      } else {
+        throw new Error('Failed to send message');
       }
-    });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      
+      // Add error message
+      const errorMessage = {
+        id: Date.now() + 1,
+        text: "Sorry, there was an error sending your message. Please try again.",
+        type: 'bot',
+        timestamp: new Date(),
+        isError: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsTyping(false);
+    }
 
     // Focus back to input
     setTimeout(() => {
@@ -195,13 +138,15 @@ const Chatbot = () => {
         <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
           isUser 
             ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' 
-            : theme === 'dark' 
-              ? 'bg-gray-700 text-white' 
-              : 'bg-gray-100 text-gray-800'
+            : message.isError
+              ? 'bg-red-100 text-red-800 border border-red-200'
+              : theme === 'dark' 
+                ? 'bg-gray-700 text-white' 
+                : 'bg-gray-100 text-gray-800'
         }`}>
           <p className="text-sm leading-relaxed">{message.text}</p>
           <p className={`text-xs mt-1 ${
-            isUser ? 'text-white/70' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+            isUser ? 'text-white/70' : message.isError ? 'text-red-600' : theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
           }`}>
             {formatTime(message.timestamp)}
           </p>
