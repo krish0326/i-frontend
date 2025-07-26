@@ -10,32 +10,57 @@ const Chatbot = () => {
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('Connecting to server...');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Backend URL - update this to your Vercel backend URL
-  const BACKEND_URL = 'https://your-backend-project-name.vercel.app'; // Replace with your actual Vercel backend URL
+  // Backend URL - you need to replace this with your actual Vercel backend URL
+  // Replace 'your-backend-project-name' with your actual Vercel backend project name
+  const BACKEND_URL = 'https://your-backend-project-name.vercel.app';
+
+  // Test multiple possible backend URLs
+  const testBackendConnection = async () => {
+    const possibleUrls = [
+      'https://your-backend-project-name.vercel.app',
+      'https://backend-your-project-name.vercel.app',
+      'https://api-your-project-name.vercel.app'
+    ];
+
+    for (const url of possibleUrls) {
+      try {
+        console.log(`Testing connection to: ${url}`);
+        const response = await fetch(`${url}/api/health`);
+        if (response.ok) {
+          console.log(`✅ Connected to: ${url}`);
+          setConnectionStatus(`Connected to: ${url}`);
+          setIsConnected(true);
+          return url;
+        }
+      } catch (error) {
+        console.log(`❌ Failed to connect to: ${url}`);
+      }
+    }
+    
+    setConnectionStatus('Failed to connect to backend');
+    setIsConnected(false);
+    return null;
+  };
 
   // Check backend connection
   useEffect(() => {
     const checkConnection = async () => {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/health`);
-        if (response.ok) {
-          setIsConnected(true);
-          console.log('Connected to backend successfully');
-        } else {
-          setIsConnected(false);
-          console.log('Backend connection failed');
-        }
-      } catch (error) {
-        setIsConnected(false);
-        console.error('Backend connection error:', error);
+      setConnectionStatus('Connecting to server...');
+      const workingUrl = await testBackendConnection();
+      
+      if (workingUrl) {
+        console.log('Backend connection successful');
+      } else {
+        console.log('Backend connection failed');
       }
     };
 
     checkConnection();
-  }, [BACKEND_URL]);
+  }, []);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -227,7 +252,7 @@ const Chatbot = () => {
                     <p className={`text-xs ${
                       theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
                     }`}>
-                      {isConnected ? '🟢 Online' : '🔴 Offline'}
+                      {connectionStatus}
                     </p>
                   </div>
                 </div>
