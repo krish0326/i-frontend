@@ -14,7 +14,7 @@ const Chatbot = () => {
   const inputRef = useRef(null);
 
   // Backend URL - update this to your Vercel backend URL
-  const BACKEND_URL = 'https://your-backend-domain.vercel.app'; // Replace with your actual Vercel backend URL
+  const BACKEND_URL = 'https://your-backend-project-name.vercel.app'; // Replace with your actual Vercel backend URL
 
   // Check backend connection
   useEffect(() => {
