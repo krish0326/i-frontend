@@ -14,16 +14,14 @@ const Chatbot = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Backend URL - you need to replace this with your actual Vercel backend URL
-  // Replace 'your-backend-project-name' with your actual Vercel backend project name
-  const BACKEND_URL = 'https://your-backend-project-name.vercel.app';
+  // Backend URL - local development server
+  const BACKEND_URL = 'http://localhost:5000';
 
   // Test multiple possible backend URLs
   const testBackendConnection = async () => {
     const possibleUrls = [
-      'https://your-backend-project-name.vercel.app',
-      'https://backend-your-project-name.vercel.app',
-      'https://api-your-project-name.vercel.app'
+      'http://localhost:5000',
+      'http://127.0.0.1:5000'
     ];
 
     for (const url of possibleUrls) {
